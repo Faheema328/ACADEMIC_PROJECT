@@ -902,7 +902,7 @@ public class DBConnection {
     // Database connection parameters
     private static final String URL = "jdbc:h2:file:./complaint_db;MODE=MySQL;DATABASE_TO_LOWER=TRUE";
     private static final String USER = "sa";
-    private static final String PASSWORD = "";
+    private static final String PASSWORD = "password";
 
     static {
         try {
@@ -1581,7 +1581,7 @@ footer {
 
 ==== src\main\webapp\WEB-INF\views\common\header.jsp ====
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
-<%@ taglib prefix="c" uri="jakarta.servlet.jsp.jstl/core" %>
+<%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1624,8 +1624,8 @@ footer {
 
 ==== src\main\webapp\WEB-INF\views\dashboard.jsp ====
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
-<%@ taglib prefix="c" uri="jakarta.servlet.jsp.jstl/core" %>
-<%@ taglib prefix="fmt" uri="jakarta.servlet.jsp.jstl/fmt" %>
+<%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <jsp:include page="common/header.jsp"/>
 
 <div class="container">
@@ -1770,7 +1770,7 @@ footer {
 
 ==== src\main\webapp\WEB-INF\views\login.jsp ====
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
-<%@ taglib prefix="c" uri="jakarta.servlet.jsp.jstl/core" %>
+<%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <jsp:include page="common/header.jsp"/>
 
 <div class="auth-wrapper">
@@ -1865,7 +1865,7 @@ footer {
 
 ==== src\main\webapp\WEB-INF\views\submit-complaint.jsp ====
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
-<%@ taglib prefix="c" uri="jakarta.servlet.jsp.jstl/core" %>
+<%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <jsp:include page="common/header.jsp"/>
 
 <div class="auth-wrapper">
@@ -1917,6 +1917,22 @@ footer {
 <jsp:include page="common/footer.jsp"/>
 
 
+==== src\main\webapp\WEB-INF\web.xml ====
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
+         
+    <display-name>Smart Complaint Prioritization and Management System</display-name>
+
+    <welcome-file-list>
+        <welcome-file>index.jsp</welcome-file>
+    </welcome-file-list>
+
+</web-app>
+
+
 ==== src\main\webapp\index.jsp ====
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%
@@ -1924,5 +1940,250 @@ footer {
     response.sendRedirect(request.getContextPath() + "/login");
 %>
 
+
+==== DBInit.java ====
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
+
+public class DBInit {
+    public static void main(String[] args) {
+        // We connect to the MySQL server without specifying a database first
+        // because the database might not exist yet.
+        String url = "jdbc:h2:file:./complaint_db;MODE=MySQL;DATABASE_TO_LOWER=TRUE";
+        String user = "sa";
+        String password = ""; 
+
+        try {
+            Class.forName("org.h2.Driver");
+            Connection conn = null;
+            String[] passwordsToTry = {"password", "", "root", "admin"};
+            for (String p : passwordsToTry) {
+                try {
+                    System.out.println("Trying to connect to MySQL with password: '" + p + "'...");
+                    conn = DriverManager.getConnection(url, user, p);
+                    password = p;
+                    System.out.println("Successfully connected!");
+                    break;
+                } catch (Exception e) {
+                    // ignore and try next
+                }
+            }
+
+            if (conn == null) {
+                System.out.println("ERROR: Could not connect to local MySQL on port 3306 with common passwords.");
+                return;
+            }
+
+            // Read schema.sql
+            StringBuilder sql = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(new FileReader("schema.sql"))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sql.append(line).append("\n");
+                }
+            }
+
+            // Split into statements and execute
+            String[] statements = sql.toString().split(";");
+            try (Statement stmt = conn.createStatement()) {
+                for (String s : statements) {
+                    if (s.trim().length() > 0) {
+                        stmt.execute(s.trim());
+                    }
+                }
+                System.out.println("Database initialization completed successfully!");
+            }
+
+            // Update DBConnection.java with the discovered password
+            if (!"password".equals(password)) {
+                System.out.println("Password used was '" + password + "', please update DBConnection.java if necessary.");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+==== pom.xml ====
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <groupId>com.complaint</groupId>
+    <artifactId>Smart-Complaint-Prioritization-System</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>war</packaging>
+    
+    <name>Smart Complaint Prioritization and Management System</name>
+    
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+    
+    <dependencies>
+        <!-- Jakarta Servlet API (Tomcat 10+) -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+        
+        <!-- Jakarta JSP API -->
+        <dependency>
+            <groupId>jakarta.servlet.jsp</groupId>
+            <artifactId>jakarta.servlet.jsp-api</artifactId>
+            <version>3.1.1</version>
+            <scope>provided</scope>
+        </dependency>
+        
+        <!-- Jakarta Standard Tag Library (JSTL) -->
+        <dependency>
+            <groupId>jakarta.servlet.jsp.jstl</groupId>
+            <artifactId>jakarta.servlet.jsp.jstl-api</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.web</groupId>
+            <artifactId>jakarta.servlet.jsp.jstl</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+        
+        <!-- H2 Database (Replaces MySQL for Zero-Config Local Setup) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.2.224</version>
+        </dependency>
+    </dependencies>
+    
+    <build>
+        <finalName>complaint-system</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.4.0</version>
+                <configuration>
+                    <failOnMissingWebXml>false</failOnMissingWebXml>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.eclipse.jetty.ee10</groupId>
+                <artifactId>jetty-ee10-maven-plugin</artifactId>
+                <version>12.0.12</version>
+                <configuration>
+                    <webApp>
+                        <contextPath>/complaint-system</contextPath>
+                    </webApp>
+                    <httpConnector>
+                        <port>8080</port>
+                    </httpConnector>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.eclipse.jetty.ee10</groupId>
+                        <artifactId>jetty-ee10-apache-jsp</artifactId>
+                        <version>12.0.12</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.eclipse.jetty.ee10</groupId>
+                        <artifactId>jetty-ee10-glassfish-jstl</artifactId>
+                        <version>12.0.12</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+
+==== schema.sql ====
+-- Database Initialization Script for MySQL
+
+-- Database Initialization Script
+
+-- 1. Create Users Table (Citizens)
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL, -- Hashed password
+    email VARCHAR(100) NOT NULL UNIQUE,
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) DEFAULT NULL,
+    address VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. Create Admins Table (Staff/System Admin)
+CREATE TABLE IF NOT EXISTS admins (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL, -- Hashed password
+    email VARCHAR(100) NOT NULL UNIQUE,
+    full_name VARCHAR(100) NOT NULL,
+    department VARCHAR(100) NOT NULL,
+    employee_id VARCHAR(50) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. Create Complaints Table
+CREATE TABLE IF NOT EXISTS complaints (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(150) NOT NULL,
+    description TEXT NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'IN_PROGRESS', 'RESOLVED'
+    priority VARCHAR(20) NOT NULL DEFAULT 'LOW',    -- 'LOW', 'MEDIUM', 'HIGH'
+    citizen_id INT NOT NULL,
+    admin_id INT DEFAULT NULL,                      -- Staff assigned to resolve/update
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_complaints_users FOREIGN KEY (citizen_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_complaints_admins FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4. Seed Initial Data
+-- Seed Admins (Password: 'password' hashed with SHA-256)
+INSERT IGNORE INTO admins (username, password, email, full_name, department, employee_id) 
+VALUES ('admin', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8', 'admin@complaints.org', 'System Administrator', 'Municipal Administration', 'EMP1001')
+ON DUPLICATE KEY UPDATE id=id;
+
+INSERT IGNORE INTO admins (username, password, email, full_name, department, employee_id) 
+VALUES ('elect_admin', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8', 'electricity_head@complaints.org', 'Sarah Connor', 'Electricity Department', 'EMP1024')
+ON DUPLICATE KEY UPDATE id=id;
+
+-- Seed Users (Citizens) (Password: 'password' hashed with SHA-256)
+INSERT IGNORE INTO users (username, password, email, full_name, phone, address) 
+VALUES ('citizen1', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8', 'citizen1@testmail.com', 'Faheem Shaik', '9876543210', '123 Park Lane, Sector 4')
+ON DUPLICATE KEY UPDATE id=id;
+
+INSERT IGNORE INTO users (username, password, email, full_name, phone, address) 
+VALUES ('citizen2', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8', 'citizen2@testmail.com', 'Alex Mercer', '8765432109', '456 Garden Square, Sector 9')
+ON DUPLICATE KEY UPDATE id=id;
+
+-- Seed Complaints
+INSERT IGNORE INTO complaints (title, description, category, status, priority, citizen_id, admin_id)
+VALUES 
+('Power Cable Sparking Near Main Park', 'The electricity wire snapped and is continuously sparking on the pavement. This is a severe threat to kids playing nearby.', 'Electricity', 'PENDING', 'HIGH', 1, NULL),
+('Broken Pothole near Central Avenue', 'A huge pothole has formed in the middle of the road. Vehicles are swerving to avoid it.', 'Roads', 'IN_PROGRESS', 'MEDIUM', 2, 2),
+('Slight garbage pile up outside colony gate', 'There is some dry garbage accumulated outside. Needs clean up by municipal team.', 'Sanitation', 'PENDING', 'LOW', 1, NULL);
 
 
